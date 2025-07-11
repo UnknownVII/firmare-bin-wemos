@@ -108,24 +108,9 @@ void setup() {
   ArduinoOTA.setHostname("wemos-rfid");
   ArduinoOTA.begin();
 
-  Serial.println("✅ Ready for OTA updates");
+  Serial.println("✅ Ready for OTA updates v2");
 
-  WiFiClientSecure client;
-  client.setInsecure(); // Skip certificate validation
-
-  t_httpUpdate_return ret = ESPhttpUpdate.update(client, BIN_URL);
-
-  switch (ret) {
-    case HTTP_UPDATE_FAILED:
-      Serial.printf("❌ OTA failed: %s\n", ESPhttpUpdate.getLastErrorString().c_str());
-      break;
-    case HTTP_UPDATE_NO_UPDATES:
-      Serial.println("ℹ️ No update available.");
-      break;
-    case HTTP_UPDATE_OK:
-      Serial.println("✅ Firmware updated. Rebooting...");
-      break;
-  }
+  performOTA();
 }
 
 void loop() {
@@ -261,4 +246,37 @@ void writeAccessTokenToEEPROM(const String& token) {
   }
   EEPROM.write(TOKEN_ADDR + len, '\0');  // Null terminator
   EEPROM.commit();
+}
+
+void performOTA() {
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  http.begin(client, FIRMWARE_URL);
+  int httpCode = http.GET();
+
+  if (httpCode == HTTP_CODE_FOUND || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
+    String redirectURL = http.header("Location");
+    http.end();
+
+    Serial.println("🔁 Following redirect to:");
+    Serial.println(redirectURL);
+
+    t_httpUpdate_return ret = ESPhttpUpdate.update(client, redirectURL);
+    switch (ret) {
+      case HTTP_UPDATE_FAILED:
+        Serial.printf("❌ OTA failed: %s\n", ESPhttpUpdate.getLastErrorString().c_str());
+        break;
+      case HTTP_UPDATE_NO_UPDATES:
+        Serial.println("ℹ️ No update available.");
+        break;
+      case HTTP_UPDATE_OK:
+        Serial.println("✅ Firmware updated. Rebooting...");
+        break;
+    }
+  } else {
+    Serial.printf("❌ OTA initial request failed. HTTP code: %d\n", httpCode);
+    http.end();
+  }
 }

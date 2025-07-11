@@ -1,0 +1,5 @@
+# Ignore secrets file (local only)
+secrets.h
+
+# macOS junk
+.DS_Store

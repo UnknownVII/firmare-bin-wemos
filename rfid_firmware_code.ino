@@ -274,6 +274,7 @@ void checkAndUpdateFirmware() {
       Serial.println(currentVersion);
       Serial.print("🆕 Latest firmware version: ");
       Serial.println(latestVersion);
+      writeToEEPROM(VERSION_ADDR, VERSION_MAX_LEN,latestVersion);
 
       if (currentVersion != latestVersion) {
         Serial.println("⬆️ New firmware available. Starting OTA update...");

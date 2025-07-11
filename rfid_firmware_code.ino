@@ -9,9 +9,14 @@
 #include <EEPROM.h>
 #include <ArduinoJson.h>
 #include "secrets.h"
+
 #define CURRENT_FIRMWARE_VERSION "1.0.0"
 #define EEPROM_SIZE 512
-#define TOKEN_ADDR 0
+#define TOKEN_ADDR 0  // start of access token
+#define TOKEN_MAX_LEN 300
+
+#define VERSION_ADDR 400  // far enough to avoid overlap
+#define VERSION_MAX_LEN 32
 
 #define SS_PIN D8
 #define RST_PIN D4
@@ -24,7 +29,6 @@
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
 String channelName = "";
-#define VERSION_ADDR 0
 
 // Function prototypes
 void shortBeep();
@@ -54,8 +58,9 @@ void setup() {
 
   EEPROM.begin(EEPROM_SIZE);
 
-  accessToken = readAccessTokenFromEEPROM();
-
+  accessToken = readFromEEPROM(TOKEN_ADDR, TOKEN_MAX_LEN);
+  Serial.print("🧾 Token: ");
+  Serial.println(accessToken);
   // if (accessToken.length() > 0 && accessToken.startsWith("ey")) {
   //   Serial.println("🔁 Using saved access token:");
   //   Serial.println(accessToken);
@@ -87,7 +92,7 @@ void setup() {
       DeserializationError err = deserializeJson(doc, response);
       if (!err && doc["access_token"]) {
         accessToken = doc["access_token"].as<String>();
-        writeAccessTokenToEEPROM(accessToken);
+        writeToEEPROM(TOKEN_ADDR, TOKEN_MAX_LEN, accessToken);
         Serial.println("✅ New access token saved:");
         Serial.println(accessToken);
       } else {
@@ -229,23 +234,23 @@ void indicateHoldStatus() {
   digitalWrite(LED_YELLOW, LOW);
 }
 
-String readAccessTokenFromEEPROM() {
-  char buffer[EEPROM_SIZE];
-  for (int i = 0; i < EEPROM_SIZE; i++) {
-    buffer[i] = EEPROM.read(TOKEN_ADDR + i);
+String readFromEEPROM(int startAddr, int maxLen) {
+  char buffer[maxLen];
+  for (int i = 0; i < maxLen; i++) {
+    buffer[i] = EEPROM.read(startAddr + i);
     if (buffer[i] == '\0') break;
   }
   return String(buffer);
 }
 
-void writeAccessTokenToEEPROM(const String& token) {
-  int len = token.length();
-  if (len >= EEPROM_SIZE) len = EEPROM_SIZE - 1;
+void writeToEEPROM(int startAddr, int maxLen, const String& value) {
+  int len = value.length();
+  if (len >= maxLen) len = maxLen - 1;
 
   for (int i = 0; i < len; i++) {
-    EEPROM.write(TOKEN_ADDR + i, token[i]);
+    EEPROM.write(startAddr + i, value[i]);
   }
-  EEPROM.write(TOKEN_ADDR + len, '\0');  // Null terminator
+  EEPROM.write(startAddr + len, '\0');
   EEPROM.commit();
 }
 
@@ -262,7 +267,7 @@ void checkAndUpdateFirmware() {
       String latestVersion = http.getString();
       latestVersion.trim();
 
-      String currentVersion = readVersionFromEEPROM();
+      String currentVersion = readFromEEPROM(VERSION_ADDR, VERSION_MAX_LEN);
       if (currentVersion.length() == 0) currentVersion = "0";
 
       Serial.print("🆚 Current firmware version: ");
@@ -283,7 +288,7 @@ void checkAndUpdateFirmware() {
             break;
           case HTTP_UPDATE_OK:
             Serial.println("✅ Update successful, saving new version.");
-            writeVersionToEEPROM(latestVersion);
+            writeToEEPROM(VERSION_ADDR, VERSION_MAX_LEN,latestVersion);
             break;
         }
       } else {
@@ -299,23 +304,3 @@ void checkAndUpdateFirmware() {
   }
 }
 
-
-String readVersionFromEEPROM() {
-  char buffer[32];
-  for (int i = 0; i < sizeof(buffer); i++) {
-    buffer[i] = EEPROM.read(VERSION_ADDR + i);
-    if (buffer[i] == '\0') break;
-  }
-  return String(buffer);
-}
-
-void writeVersionToEEPROM(const String& version) {
-  int len = version.length();
-  if (len >= 31) len = 31;
-
-  for (int i = 0; i < len; i++) {
-    EEPROM.write(VERSION_ADDR + i, version[i]);
-  }
-  EEPROM.write(VERSION_ADDR + len, '\0');  // null terminator
-  EEPROM.commit();
-}

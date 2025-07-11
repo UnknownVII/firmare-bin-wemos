@@ -7,7 +7,7 @@ on:
 
 jobs:
   release:
-    name: 🚀 Upload firmware to GitHub Release
+    name: 🚀 Upload firmware to GitHub Release 1
     runs-on: ubuntu-latest
 
     permissions:
@@ -17,26 +17,12 @@ jobs:
       - name: 📥 Checkout repository
         uses: actions/checkout@v3
 
-      - name: 🏷️ Delete old 'latest' tag if exists
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git tag -d latest || true
-          git push origin :refs/tags/latest || true
-
-      - name: 🏷️ Create 'latest' tag
-        run: |
-          git tag latest
-          git push origin latest --force
-
-      - name: 🚀 Create GitHub Release with 'latest' tag
+      - name: 🏷️ Create Release and Upload Firmware
         uses: softprops/action-gh-release@v2
         with:
-          name: Latest Firmware
-          tag_name: latest
+          name: Firmware v${{ github.run_number }}
+          tag_name: v${{ github.run_number }}
           files: build/esp8266.esp8266.d1_mini_clone/*.bin
-          prerelease: false
-          draft: false
-          generate_release_notes: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

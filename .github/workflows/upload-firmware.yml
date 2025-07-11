@@ -1,4 +1,4 @@
-name: Firmware Release
+name: Firmware Version Push
 
 on:
   push:
@@ -6,23 +6,30 @@ on:
       - master
 
 jobs:
-  release:
-    name: 🚀 Upload firmware to GitHub Release 1
+  upload:
+    name: 🚀 Upload firmware and version file to repo
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write  # Needed to create release and upload assets
+      contents: write
 
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v3
 
-      - name: 🏷️ Create Release and Upload Firmware
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Firmware v${{ github.run_number }}
-          tag_name: v${{ github.run_number }}
-          files: build/esp8266.esp8266.d1_mini_clone/*.bin
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 📝 Generate version file
+        run: echo "${{ github.run_number }}" > version.txt
+
+      - name: 📦 Move firmware .bin file to root (optional)
+        run: |
+          mkdir -p public
+          cp build/esp8266.esp8266.d1_mini_clone/*.bin public/
+          cp version.txt public/
+
+      - name: 📤 Push version.txt and .bin to repo
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add public/*.bin public/version.txt
+          git commit -m "🤖 Update firmware and version to v${{ github.run_number }}"
+          git push

@@ -9,7 +9,7 @@
 #include <EEPROM.h>
 #include <ArduinoJson.h>
 #include "secrets.h"
-
+#define CURRENT_FIRMWARE_VERSION "1.0.0"
 #define EEPROM_SIZE 512
 #define TOKEN_ADDR 0
 
@@ -110,7 +110,7 @@ void setup() {
 
   Serial.println("✅ Ready for OTA updates v3");
 
-  performOTA();
+  checkAndUpdateFirmware();
 }
 
 void loop() {
@@ -248,25 +248,48 @@ void writeAccessTokenToEEPROM(const String& token) {
   EEPROM.commit();
 }
 
-void performOTA() {
-  Serial.println("🌐 Checking firmware URL...");
-  Serial.println(FIRMWARE_URL);
+void checkAndUpdateFirmware() {
+  Serial.println("🌐 Checking firmware version...");
 
   WiFiClientSecure client;
-  client.setInsecure();  // Skip certificate validation (you can replace with your AWS SSL later)
+  client.setInsecure();
 
-  t_httpUpdate_return ret = ESPhttpUpdate.update(client, FIRMWARE_URL);
+  HTTPClient http;
+  if (http.begin(client, VERSION_URL)) {
+    int httpCode = http.GET();
+    if (httpCode == HTTP_CODE_OK) {
+      String latestVersion = http.getString();
+      latestVersion.trim(); // Remove whitespace and newline
 
-  switch (ret) {
-    case HTTP_UPDATE_FAILED:
-      Serial.printf("❌ OTA failed: %s\n", ESPhttpUpdate.getLastErrorString().c_str());
-      break;
-    case HTTP_UPDATE_NO_UPDATES:
-      Serial.println("ℹ️ No update available.");
-      break;
-    case HTTP_UPDATE_OK:
-      Serial.println("✅ Firmware updated. Rebooting...");
-      break;
+      Serial.print("🆚 Current firmware version: ");
+      Serial.println(CURRENT_FIRMWARE_VERSION);
+      Serial.print("🆕 Latest firmware version: ");
+      Serial.println(latestVersion);
+
+      if (strcmp(CURRENT_FIRMWARE_VERSION, latestVersion.c_str()) != 0) {
+        Serial.println("⬆️ New firmware available. Starting OTA update...");
+
+        t_httpUpdate_return ret = ESPhttpUpdate.update(client, FIRMWARE_URL);
+        switch (ret) {
+          case HTTP_UPDATE_FAILED:
+            Serial.printf("❌ OTA failed: %s\n", ESPhttpUpdate.getLastErrorString().c_str());
+            break;
+          case HTTP_UPDATE_NO_UPDATES:
+            Serial.println("ℹ️ No update available.");
+            break;
+          case HTTP_UPDATE_OK:
+            Serial.println("✅ Update successful, rebooting...");
+            break;
+        }
+      } else {
+        Serial.println("✅ Firmware is up to date.");
+      }
+
+    } else {
+      Serial.printf("❌ Failed to fetch version.txt, HTTP code: %d\n", httpCode);
+    }
+    http.end();
+  } else {
+    Serial.println("❌ Connection to VERSION_URL failed.");
   }
 }
-

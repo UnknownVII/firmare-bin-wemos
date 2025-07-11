@@ -24,6 +24,7 @@
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
 String channelName = "";
+#define VERSION_ADDR 0
 
 // Function prototypes
 void shortBeep();
@@ -259,14 +260,17 @@ void checkAndUpdateFirmware() {
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
       String latestVersion = http.getString();
-      latestVersion.trim(); // Remove whitespace and newline
+      latestVersion.trim();
+
+      String currentVersion = readVersionFromEEPROM();
+      if (currentVersion.length() == 0) currentVersion = "0";
 
       Serial.print("🆚 Current firmware version: ");
-      Serial.println(CURRENT_FIRMWARE_VERSION);
+      Serial.println(currentVersion);
       Serial.print("🆕 Latest firmware version: ");
       Serial.println(latestVersion);
 
-      if (strcmp(CURRENT_FIRMWARE_VERSION, latestVersion.c_str()) != 0) {
+      if (currentVersion != latestVersion) {
         Serial.println("⬆️ New firmware available. Starting OTA update...");
 
         t_httpUpdate_return ret = ESPhttpUpdate.update(client, FIRMWARE_URL);
@@ -278,7 +282,8 @@ void checkAndUpdateFirmware() {
             Serial.println("ℹ️ No update available.");
             break;
           case HTTP_UPDATE_OK:
-            Serial.println("✅ Update successful, rebooting...");
+            Serial.println("✅ Update successful, saving new version.");
+            writeVersionToEEPROM(latestVersion);
             break;
         }
       } else {
@@ -292,4 +297,25 @@ void checkAndUpdateFirmware() {
   } else {
     Serial.println("❌ Connection to VERSION_URL failed.");
   }
+}
+
+
+String readVersionFromEEPROM() {
+  char buffer[32];
+  for (int i = 0; i < sizeof(buffer); i++) {
+    buffer[i] = EEPROM.read(VERSION_ADDR + i);
+    if (buffer[i] == '\0') break;
+  }
+  return String(buffer);
+}
+
+void writeVersionToEEPROM(const String& version) {
+  int len = version.length();
+  if (len >= 31) len = 31;
+
+  for (int i = 0; i < len; i++) {
+    EEPROM.write(VERSION_ADDR + i, version[i]);
+  }
+  EEPROM.write(VERSION_ADDR + len, '\0');  // null terminator
+  EEPROM.commit();
 }

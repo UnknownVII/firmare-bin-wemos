@@ -1,6 +1,8 @@
 #include <SPI.h>
 #include <MFRC522.h>
 #include <ESP8266WiFi.h>
+#include <ESP8266httpUpdate.h>
+#include <WiFiClientSecure.h>
 #include <WiFiManager.h>
 #include <ESP8266HTTPClient.h>
 #include <ArduinoOTA.h>
@@ -107,6 +109,23 @@ void setup() {
   ArduinoOTA.begin();
 
   Serial.println("✅ Ready for OTA updates");
+
+  WiFiClientSecure client;
+  client.setInsecure(); // Skip certificate validation
+
+  t_httpUpdate_return ret = ESPhttpUpdate.update(client, BIN_URL);
+
+  switch (ret) {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("❌ OTA failed: %s\n", ESPhttpUpdate.getLastErrorString().c_str());
+      break;
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("ℹ️ No update available.");
+      break;
+    case HTTP_UPDATE_OK:
+      Serial.println("✅ Firmware updated. Rebooting...");
+      break;
+  }
 }
 
 void loop() {

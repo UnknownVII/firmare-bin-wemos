@@ -249,52 +249,24 @@ void writeAccessTokenToEEPROM(const String& token) {
 }
 
 void performOTA() {
-  WiFiClientSecure client;
-  client.setInsecure();
-
-  HTTPClient http;
   Serial.println("🌐 Checking firmware URL...");
   Serial.println(FIRMWARE_URL);
 
-  if (!http.begin(client, FIRMWARE_URL)) {
-    Serial.println("❌ Unable to connect to firmware URL.");
-    return;
-  }
+  WiFiClientSecure client;
+  client.setInsecure();  // Skip certificate validation (you can replace with your AWS SSL later)
 
-  int httpCode = http.GET();
-  Serial.printf("🔁 HTTP Code: %d\n", httpCode);
+  t_httpUpdate_return ret = ESPhttpUpdate.update(client, FIRMWARE_URL);
 
-  if (httpCode == HTTP_CODE_FOUND || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
-    String redirectURL = http.getLocation();
-    http.end();
-
-    if (redirectURL.length() == 0) {
-      Serial.println("❌ No redirect URL found!");
-      return;
-    }
-
-    Serial.println("🔁 Following redirect to:");
-    Serial.println(redirectURL);
-
-    // New secure client for redirected request
-    WiFiClientSecure otaClient;
-    otaClient.setInsecure();
-    t_httpUpdate_return ret = ESPhttpUpdate.update(otaClient, redirectURL);
-
-    switch (ret) {
-      case HTTP_UPDATE_FAILED:
-        Serial.printf("❌ OTA failed: %s\n", ESPhttpUpdate.getLastErrorString().c_str());
-        break;
-      case HTTP_UPDATE_NO_UPDATES:
-        Serial.println("ℹ️ No update available.");
-        break;
-      case HTTP_UPDATE_OK:
-        Serial.println("✅ Firmware updated. Rebooting...");
-        break;
-    }
-  } else {
-    Serial.printf("❌ Initial firmware request failed. Code: %d\n", httpCode);
-    http.end();
+  switch (ret) {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("❌ OTA failed: %s\n", ESPhttpUpdate.getLastErrorString().c_str());
+      break;
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("ℹ️ No update available.");
+      break;
+    case HTTP_UPDATE_OK:
+      Serial.println("✅ Firmware updated. Rebooting...");
+      break;
   }
 }
 
